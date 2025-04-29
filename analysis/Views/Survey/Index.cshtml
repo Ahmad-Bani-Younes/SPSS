@@ -45,12 +45,11 @@
         </div>
     }
 
-    <!-- تحليل البيانات -->
+    <!-- تحليل البيانات: النسخة العربية -->
     <div id="analysis-content">
         @if (Model != null)
         {
             int chartIndex = 0;
-
             foreach (var column in Model)
             {
                 var chartId = $"chart_{chartIndex}";
@@ -133,19 +132,65 @@
             </div>
         }
     </div>
+
+    <!-- النسخة الإنجليزية للتصدير -->
+    @if (Model != null)
+    {
+        <div id="analysis-content-en" style="display:none;">
+            <h3 class="text-center mb-4">Survey Analysis Report</h3>
+            @foreach (var column in Model)
+            {
+                <h5 class="mt-4">Question: @column.Key</h5>
+                <table style="width:100%; border-collapse: collapse;" border="1">
+                    <thead style="background-color: #f0f0f0;">
+                        <tr>
+                            <th style="padding: 5px;">Answer</th>
+                            <th style="padding: 5px;">Count</th>
+                            <th style="padding: 5px;">Percentage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            int total = column.Value.Values.Sum();
+                        }
+                        @foreach (var value in column.Value.OrderByDescending(v => v.Value))
+                        {
+                            <tr>
+                                <td style="padding: 5px;">@value.Key</td>
+                                <td style="padding: 5px;">@value.Value</td>
+                                <td style="padding: 5px;">@($"{((double)value.Value / total * 100):F1}%")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
 </div>
 
-<!-- سكربت حفظ PDF -->
 <script>
     function downloadPDF() {
-        const element = document.getElementById("analysis-content");
+        const btn = document.querySelector('button.btn-success');
+        const content = document.getElementById("analysis-content-en");
+
+        // 1. أظهر النسخة الإنجليزية مؤقتًا
+        content.style.display = 'block';
+        btn.style.display = 'none';
+
+        // 2. إعدادات التصدير
         const opt = {
             margin: 0.3,
-            filename: 'Survey_Analysis.pdf',
+            filename: 'Survey_Analysis_English.pdf',
             image: { type: 'jpeg', quality: 0.98 },
             html2canvas: { scale: 2 },
             jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
         };
-        html2pdf().from(element).set(opt).save();
+
+        // 3. تنفيذ التصدير ثم إعادة الإخفاء
+        html2pdf().from(content).set(opt).save().then(() => {
+            content.style.display = 'none'; // أخفِ النسخة بعد التصدير
+            btn.style.display = 'inline-block'; // أعد الزر
+        });
     }
 </script>
+
