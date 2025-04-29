@@ -1,47 +1,151 @@
-﻿<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - analysis</title>
-    <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
-    <link rel="stylesheet" href="~/analysis.styles.css" asp-append-version="true" />
-</head>
-<body>
-    <header>
-        <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-            <div class="container-fluid">
-                <a class="navbar-brand" asp-area="" asp-controller="Home" asp-action="Index">analysis</a>
-                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                        aria-expanded="false" aria-label="Toggle navigation">
-                    <span class="navbar-toggler-icon"></span>
-                </button>
-                <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                    <ul class="navbar-nav flex-grow-1">
-                   
-                        <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-controller="Survey" asp-action="Index">AnalyzeSurvey</a>
-                        </li>
-                    </ul>
+﻿@model Dictionary<string, Dictionary<string, int>>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- html2pdf.js -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+<!-- Bootstrap -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.5/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+
+@{
+    ViewBag.Title = "Survey Analysis Result";
+}
+
+<div class="container mt-5">
+    <h2 class="mb-4 text-center">🧠 Survey Analysis Tool (SPSS-style)</h2>
+
+    <!-- نموذج رفع الملف -->
+    <form method="post" asp-action="Index" asp-controller="Survey" enctype="multipart/form-data" class="mb-5">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="input-group shadow-sm">
+                    <input type="file" name="file" class="form-control" required />
+                    <button type="submit" class="btn btn-primary">Analyze</button>
                 </div>
             </div>
-        </nav>
-    </header>
-    <div class="container">
-        <main role="main" class="pb-3">
-            @RenderBody()
-        </main>
-    </div>
-
-    <footer class="border-top footer text-muted">
-        <div class="container">
-            &copy; 2025 - analysis - <a asp-area="" asp-controller="Home" asp-action="Privacy">Privacy</a>
         </div>
-    </footer>
-    <script src="~/lib/jquery/dist/jquery.min.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="~/js/site.js" asp-append-version="true"></script>
-    @await RenderSectionAsync("Scripts", required: false)
-</body>
-</html>
+    </form>
+
+    <!-- رسالة الخطأ -->
+    @if (!string.IsNullOrEmpty(ViewBag.Error as string))
+    {
+        <div class="alert alert-danger text-center fw-bold">
+            @ViewBag.Error
+        </div>
+    }
+
+    <!-- زر التحميل PDF -->
+    @if (Model != null)
+    {
+        <div class="text-end mb-3">
+            <button class="btn btn-success" onclick="downloadPDF()">Download as PDF</button>
+        </div>
+    }
+
+    <!-- تحليل البيانات -->
+    <div id="analysis-content">
+        @if (Model != null)
+        {
+            int chartIndex = 0;
+
+            foreach (var column in Model)
+            {
+                var chartId = $"chart_{chartIndex}";
+
+                <div class="card mb-4 shadow-sm border-0">
+                    <div class="card-header bg-dark text-white text-center fw-bold fs-5">
+                        @column.Key
+                    </div>
+                    <div class="card-body">
+                        <table class="table table-bordered table-hover mb-4 text-center">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-start ps-3">Answer</th>
+                                    <th>Count</th>
+                                    <th>Percentage</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @{
+                                    int total = column.Value.Values.Sum();
+                                }
+                                @foreach (var value in column.Value.OrderByDescending(v => v.Value))
+                                {
+                                    <tr>
+                                        <td class="text-start ps-3">@value.Key</td>
+                                        <td>@value.Value</td>
+                                        <td>@($"{((double)value.Value / total * 100):F1}%")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+
+                        <!-- الرسم البياني -->
+                        <canvas id="@chartId" height="200"></canvas>
+
+                        <script>
+                            const ctx@chartIndex = document.getElementById('@chartId').getContext('2d');
+                            new Chart(ctx@chartIndex, {
+                                type: 'bar',
+                                data: {
+                                    labels: [@string.Join(",", column.Value.Keys.Select(k => $"'{k}'"))],
+                                    datasets: [{
+                                        label: 'Count',
+                                        data: [@string.Join(",", column.Value.Values)],
+                                        backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                                        borderColor: 'rgba(54, 162, 235, 1)',
+                                        borderWidth: 1
+                                    }]
+                                },
+                                options: {
+                                    responsive: true,
+                                    plugins: {
+                                        legend: { display: false },
+                                        title: {
+                                            display: true,
+                                            text: 'Distribution of Responses'
+                                        }
+                                    },
+                                    scales: {
+                                        y: {
+                                            beginAtZero: true,
+                                            ticks: {
+                                                precision: 0
+                                            }
+                                        }
+                                    }
+                                }
+                            });
+                        </script>
+                    </div>
+                </div>
+
+                chartIndex++;
+            }
+        }
+        else if (string.IsNullOrEmpty(ViewBag.Error as string))
+        {
+            <div class="alert alert-info text-center">
+                Please upload a survey Excel file (.xlsx) to analyze the responses.
+            </div>
+        }
+    </div>
+</div>
+
+<!-- سكربت حفظ PDF -->
+<script>
+    function downloadPDF() {
+        const element = document.getElementById("analysis-content");
+        const opt = {
+            margin: 0.3,
+            filename: 'Survey_Analysis.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+        html2pdf().from(element).set(opt).save();
+    }
+</script>
